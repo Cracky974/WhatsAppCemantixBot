@@ -11,8 +11,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import StaleElementReferenceException
+from PIL import Image
+from io import BytesIO
+import os
+import win32clipboard
 
 #varianles globales
+
+_conv = "Ariane"
 url_cemantix = "https://cemantix.herokuapp.com/"
 tableaudujour = []
 col_id=0
@@ -46,7 +53,7 @@ wa_tabs = driver.current_window_handle
 time.sleep(15)
 #Selection de la conversation Gwoleo
 try:
-    conv_Gwoleo = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='Ariane']")
+    conv_Gwoleo = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='"+_conv+"']")
     conv_Gwoleo.click()
     textbox_wa = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")
 except NoSuchElementException :
@@ -72,6 +79,12 @@ driver.switch_to.window(wa_tabs)
 
 
 #####################################################################################
+def sendmessage(message, wa_tab, textbox_wa=driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")):
+    driver.switch_to.window(wa_tab)
+    textbox_wa.clear()
+    textbox_wa.send_keys(message)
+    textbox_wa.send_keys(Keys.RETURN)
+
 def score_proposition_cemantix(proposition_gwoleo):
     global score
     driver.switch_to.window(cem_tabs)
@@ -104,7 +117,7 @@ def getscore(rex_msg, tableaudujour, textbox_wa = driver.find_element(By.XPATH, 
         else:
             _id =0
         ligne = [_id, mot, heure, score_proposition_cemantix(mot)]
-
+        driver.switch_to.window(wa_tabs)
         textbox_wa.clear()
         textbox_wa.send_keys("id :  " +str(_id ) +"  mot : " + mot +"   " +str(score))
         textbox_wa.send_keys(Keys.RETURN)
@@ -112,7 +125,46 @@ def getscore(rex_msg, tableaudujour, textbox_wa = driver.find_element(By.XPATH, 
     else:
         return None
 
+def get_screenshot_update():
 
+    driver.switch_to.window(cem_tabs)
+    guessable = driver.find_element(By.ID,"guessable")
+    png = driver.get_screenshot_as_png()
+
+    location = guessable.location
+    size = guessable.size
+    im = Image.open(BytesIO(png)) # uses PIL library to open image in memory
+
+    left = location['x']
+    top = location['y']
+    right = location['x'] + size['width']
+    bottom = location['y'] + size['height']
+
+
+    im = im.crop((left, top, right, bottom)) # defines crop points
+    im.save('update.png')
+    #im.save('screenshot.png') # saves new cropped image
+
+def copy_image(path: str) -> None:
+    """Copy the Image to Clipboard based on the Platform"""
+    image = Image.open(path)
+    output = BytesIO()
+    image.convert("RGB").save(output, "BMP")
+    data = output.getvalue()[14:]
+    output.close()
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+    win32clipboard.CloseClipboard()
+
+def send_copied_image(wa_tab, textbox_wat=driver.find_element(By.XPATH, "//*[@title='Type a message']")):
+    driver.switch_to.window(wa_tab)
+    textbox_wat.clear()
+    textbox_wat.send_keys(Keys.CONTROL + "v")
+    driver.implicitly_wait(1)
+    #obligé de changer de textbox a cause du changement de whatsapp quand collage d'une image
+    textbox_wat = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
+    textbox_wat.send_keys(Keys.RETURN)
 ######################################################################################
 
 driver.switch_to.window(wa_tabs)
@@ -126,6 +178,7 @@ try:
 except NoSuchElementException:
     print("Oops, impossible de trouver les messages")
 
+sendmessage("Le serveur est prêt à prendre vos proposition",wa_tabs, textbox_wa)
 
 while(1):
     #Selection des messages reçu
@@ -146,11 +199,14 @@ while(1):
             if mot[0] == "_":
                 if mot == "_update":
                     print("update")
+                    get_screenshot_update()
+                    copy_image(r'update.png')
+                    send_copied_image(wa_tabs)
                 else:
                     print("option invalide")
 
             else:
-                ligne = getscore(rex_msg, tableaudujour)
+                ligne = getscore(rex_msg, tableaudujour, textbox_wa)
                 if ligne is not None:
                     tableaudujour.append(ligne)
 
