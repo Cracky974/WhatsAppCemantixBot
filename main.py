@@ -46,7 +46,7 @@ wa_tabs = driver.current_window_handle
 time.sleep(15)
 #Selection de la conversation Gwoleo
 try:
-    conv_Gwoleo = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='GwoLeo']")
+    conv_Gwoleo = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='Ariane']")
     conv_Gwoleo.click()
     textbox_wa = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")
 except NoSuchElementException :
@@ -88,11 +88,10 @@ def score_proposition_cemantix(proposition_gwoleo):
         score = element[2].text
 
     except TimeoutException:
+        score = 0
+    finally:
         if re.match("Je ne connais pas le mot", driver.find_element(By.ID, "error").text):
             score = -1
-        else:
-            score = 0
-    finally:
         driver.switch_to.window(wa_tabs)
         return (score)
 
@@ -144,10 +143,16 @@ while(1):
         if re.match(regex_proposition, last_msg.text.lower()):
             rex_msg = rex_mot.search(last_msg.text.lower())
             mot = rex_msg.group(1).replace(" ", "")
+            if mot[0] == "_":
+                if mot == "_update":
+                    print("update")
+                else:
+                    print("option invalide")
 
-            ligne = getscore(rex_msg, tableaudujour)
-            if ligne is not None:
-                tableaudujour.append(ligne)
+            else:
+                ligne = getscore(rex_msg, tableaudujour)
+                if ligne is not None:
+                    tableaudujour.append(ligne)
 
     for _ in tableaudujour:
         for i in _:
