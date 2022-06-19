@@ -28,8 +28,8 @@ col_heure=2
 col_score=3
 regex_proposition = "c::(.+)::\n(.+)"
 rex_mot = re.compile(regex_proposition)
-last_msg = None
-
+last_msg_in = None
+last_msg_out = None
 
 #tableau 2D ID | mot | heure
 #           1   essai  10:15
@@ -79,6 +79,7 @@ driver.switch_to.window(wa_tabs)
 
 
 #####################################################################################
+
 def sendmessage(message, wa_tab, textbox_wa=driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")):
     driver.switch_to.window(wa_tab)
     textbox_wa.clear()
@@ -128,12 +129,15 @@ def getscore(rex_msg, tableaudujour, textbox_wa = driver.find_element(By.XPATH, 
 def get_screenshot_update():
 
     driver.switch_to.window(cem_tabs)
-    guessable = driver.find_element(By.ID,"guessable")
+    guessable = driver.find_element(By.ID, "guessable")
     png = driver.get_screenshot_as_png()
 
     location = guessable.location
     size = guessable.size
     im = Image.open(BytesIO(png)) # uses PIL library to open image in memory
+    maxHeight = 460
+    if size['height'] > maxHeight:
+        size['height'] = maxHeight
 
     left = location['x']
     top = location['y']
@@ -165,50 +169,67 @@ def send_copied_image(wa_tab, textbox_wat=driver.find_element(By.XPATH, "//*[@ti
     #obligé de changer de textbox a cause du changement de whatsapp quand collage d'une image
     textbox_wat = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
     textbox_wat.send_keys(Keys.RETURN)
+
+def interpreteur(msg : str):
+    global tableaudujour
+    if re.match(regex_proposition, msg.text.lower()):
+        rex_msg = rex_mot.search(msg.text.lower())
+        mot = rex_msg.group(1).replace(" ", "")
+        if mot[0] == "_":
+            if mot == "_update":
+                print("update")
+                get_screenshot_update()
+                copy_image(r'update.png')
+                send_copied_image(wa_tabs)
+            else:
+                print("option invalide")
+                sendmessage("option invalide", wa_tabs)
+
+        else:
+            ligne = getscore(rex_msg, tableaudujour, textbox_wa)
+            if ligne is not None:
+                tableaudujour.append(ligne)
+
 ######################################################################################
 
 driver.switch_to.window(wa_tabs)
 try:
-    messages = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
-    if messages.__len__() == 0:
-        print("Oops, impossible de trouver les messages")
-
+    messages_in = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
+    if messages_in.__len__() == 0:
+        print("Oops, impossible de trouver les messages_in")
     else:
-        last_msg = messages[-1]
-except NoSuchElementException:
-    print("Oops, impossible de trouver les messages")
+        last_msg_in = messages_in[-1]
 
-sendmessage("Le serveur est prêt à prendre vos proposition",wa_tabs, textbox_wa)
+    messages_out = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-out ')]")
+    if messages_out.__len__() == 0:
+        print("Oops, impossible de trouver les messages_out")
+    else:
+        last_msg_out = messages_out[-1]
+
+except NoSuchElementException:
+    print("Oops, impossible de trouver les messages_in")
+
+sendmessage("Le serveur est prêt à prendre vos propositions",wa_tabs, textbox_wa)
 
 while(1):
-    #Selection des messages reçu
+    #Selection des messages_in reçu
     try:
         driver.switch_to.window(wa_tabs)
-        messages = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
-        if messages.__len__() == 0:
+        messages_in = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
+        messages_out = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-out ')]")
+        if messages_in.__len__() == 0 or messages_out.__len__() == 0:
             print("Oops, impossible de trouver les messages")
             break
     except NoSuchElementException:
         print("Oops, impossible de trouver les messages")
         break
-    if last_msg != messages[-1]:
-        last_msg = messages[-1]
-        if re.match(regex_proposition, last_msg.text.lower()):
-            rex_msg = rex_mot.search(last_msg.text.lower())
-            mot = rex_msg.group(1).replace(" ", "")
-            if mot[0] == "_":
-                if mot == "_update":
-                    print("update")
-                    get_screenshot_update()
-                    copy_image(r'update.png')
-                    send_copied_image(wa_tabs)
-                else:
-                    print("option invalide")
+    if last_msg_in != messages_in[-1]:
+        last_msg_in = messages_in[-1]
+        interpreteur(last_msg_in)
 
-            else:
-                ligne = getscore(rex_msg, tableaudujour, textbox_wa)
-                if ligne is not None:
-                    tableaudujour.append(ligne)
+    if last_msg_out != messages_out[-1]:
+        last_msg_out = messages_out[-1]
+        interpreteur(last_msg_out)
 
     for _ in tableaudujour:
         for i in _:
