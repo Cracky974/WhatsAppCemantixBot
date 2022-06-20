@@ -26,11 +26,12 @@ col_id=0
 col_mot=1
 col_heure=2
 col_score=3
-regex_proposition = "^c::(.+)::\n(.+)"
+regex_proposition = "^c::(.+):: *\n([0-1]?[0-9]|2[0-3]):([0-5][0-9])$"
 rex_mot = re.compile(regex_proposition)
 last_msg_in = None
 last_msg_out = None
-bienvenue = "Le serveur est prêt à prendre vos propositions  utilisation :  exemple : c::mot::   options : c::_update::   c::_refresh::"
+bienvenue = "Le serveur est prêt à prendre vos propositions "
+usage = "exemple : c::mot:: option : c::_update:: c::_refresh::"
 
 #tableau 2D ID | mot | heure
 #           1   essai  10:15
@@ -107,22 +108,25 @@ def score_proposition_cemantix(proposition_gwoleo):
     finally:
         if re.match("Je ne connais pas le mot", driver.find_element(By.ID, "error").text):
             score = -1
+            sendmessage("Je ne connais pas le mot", wa_tabs)
         driver.switch_to.window(wa_tabs)
         return (score)
 
 def getscore(rex_msg, tableaudujour, textbox_wa = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")):
     mot = rex_msg.group(1).replace(" ", "")
-    if mot not in column(tableaudujour, col_mot):
+    if mot not in column(tableaudujour, "mot"):
         heure =rex_msg.group(2)
+        minute = rex_msg.group(3)
+        time = str(heure)+":"+str(minute)
         if len(tableaudujour ) >0:
-            _id = tableaudujour[len(tableaudujour ) -1][0] + 1
+            _id = tableaudujour[len(tableaudujour ) -1]["_id"] + 1
         else:
             _id =0
-        ligne = [_id, mot, heure, score_proposition_cemantix(mot)]
-        driver.switch_to.window(wa_tabs)
-        textbox_wa.clear()
-        textbox_wa.send_keys("id :  " +str(_id ) +"  mot : " + mot +"   " +str(score))
-        textbox_wa.send_keys(Keys.RETURN)
+        ligne = {"_id" : _id, "mot" : mot, "time" :  time, "score" : score_proposition_cemantix(mot)}
+     #   driver.switch_to.window(wa_tabs)
+     #   textbox_wa.clear()
+     #   textbox_wa.send_keys("id :  " +str(_id ) +"  mot : " + mot +"   " +str(score))
+     #   textbox_wa.send_keys(Keys.RETURN)
         return ligne
     else:
         return None
@@ -194,6 +198,7 @@ def interpreteur(msg : str):
 
         else:
             ligne = getscore(rex_msg, tableaudujour, textbox_wa)
+            sendmessage("id :  " +str(ligne["_id"] ) +"  mot : " + mot +"   " +str(ligne["score"]), wa_tabs)
             if ligne is not None:
                 tableaudujour.append(ligne)
 
@@ -201,8 +206,8 @@ def interpreteur(msg : str):
 ######################################################################################
 
 driver.switch_to.window(wa_tabs)
-sendmessage(bienvenue ,wa_tabs, textbox_wa)
-
+sendmessage(bienvenue , wa_tabs, textbox_wa)
+sendmessage(usage , wa_tabs, textbox_wa)
 try:
     messages_in = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
     if messages_in.__len__() == 0:
@@ -235,19 +240,25 @@ while(1):
         break
     if last_msg_in != messages_in[-1]:
         last_msg_in = messages_in[-1]
-        interpreteur(last_msg_in)
+        try:
+            interpreteur(last_msg_in)
+        except StaleElementReferenceException:
+            print(StaleElementReferenceException.__str__())
 
     if last_msg_out != messages_out[-1]:
         last_msg_out = messages_out[-1]
-        interpreteur(last_msg_out)
+        try:
+            interpreteur(last_msg_out)
+        except StaleElementReferenceException:
+            print(StaleElementReferenceException.__str__())
 
-    for _ in tableaudujour:
-        for i in _:
-            print(i, end=" ")
-        print()
+ #   for _ in tableaudujour:
+ #       for key, value in _.items():
+ #           print(key, ' : ', value)
+ #       print()
 
     time.sleep(0.5)
-#       print("id="+str(_id)+"  mot=" + mot+"     "+heure)
+#       StaleElementReferenceException
 
 
 #'Parapet\n18:12'
