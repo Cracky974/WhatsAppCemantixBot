@@ -19,17 +19,18 @@ import win32clipboard
 
 #varianles globales
 
-_conv = "Ariane"
+_conv = "GwoLeo"
 url_cemantix = "https://cemantix.herokuapp.com/"
 tableaudujour = []
 col_id=0
 col_mot=1
 col_heure=2
 col_score=3
-regex_proposition = "c::(.+)::\n(.+)"
+regex_proposition = "^c::(.+)::\n(.+)"
 rex_mot = re.compile(regex_proposition)
 last_msg_in = None
 last_msg_out = None
+bienvenue = "Le serveur est prêt à prendre vos propositions  utilisation :  exemple : c::mot::   options : c::_update::   c::_refresh::"
 
 #tableau 2D ID | mot | heure
 #           1   essai  10:15
@@ -135,7 +136,7 @@ def get_screenshot_update():
     location = guessable.location
     size = guessable.size
     im = Image.open(BytesIO(png)) # uses PIL library to open image in memory
-    maxHeight = 460
+    maxHeight = 527 #taille pour 20guesse+tableau
     if size['height'] > maxHeight:
         size['height'] = maxHeight
 
@@ -170,6 +171,10 @@ def send_copied_image(wa_tab, textbox_wat=driver.find_element(By.XPATH, "//*[@ti
     textbox_wat = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
     textbox_wat.send_keys(Keys.RETURN)
 
+def refresh_cemantix(cem_tab, driver):
+    driver.switch_to.window(cem_tab)
+    driver.refresh()
+
 def interpreteur(msg : str):
     global tableaudujour
     if re.match(regex_proposition, msg.text.lower()):
@@ -181,6 +186,8 @@ def interpreteur(msg : str):
                 get_screenshot_update()
                 copy_image(r'update.png')
                 send_copied_image(wa_tabs)
+            elif mot == "_refresh":
+                refresh_cemantix(cem_tabs, driver)
             else:
                 print("option invalide")
                 sendmessage("option invalide", wa_tabs)
@@ -190,9 +197,12 @@ def interpreteur(msg : str):
             if ligne is not None:
                 tableaudujour.append(ligne)
 
+
 ######################################################################################
 
 driver.switch_to.window(wa_tabs)
+sendmessage(bienvenue ,wa_tabs, textbox_wa)
+
 try:
     messages_in = driver.find_elements(By.XPATH, "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
     if messages_in.__len__() == 0:
@@ -209,7 +219,7 @@ try:
 except NoSuchElementException:
     print("Oops, impossible de trouver les messages_in")
 
-sendmessage("Le serveur est prêt à prendre vos propositions",wa_tabs, textbox_wa)
+
 
 while(1):
     #Selection des messages_in reçu
