@@ -1,6 +1,5 @@
 import time
 import re
-
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException
 from selenium import webdriver
@@ -10,15 +9,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import NoSuchWindowException
 from PIL import Image
 from io import BytesIO
-from simon.accounts.pages import LoginPage
 import win32clipboard
 
 # variables globales
 
-_conv = "William Gougam"
+_conv = "GwoLeo"
 url_cemantix = "https://cemantix.herokuapp.com/"
+url_wa = "https://web.whatsapp.com/"
 tableaudujour = []
 col_id = 0
 col_mot = 1
@@ -42,40 +42,72 @@ def column(matrix, column):
 
 def init():
     global driver
-    global wa_tabs
+
     service = Service(executable_path="Z:\Progra\python\WAcemantix\chromedriver.exe")
     driver = webdriver.Chrome(service=service)
     driver.maximize_window()
+    init_wa() # Ouverture de l'onglet cemantix
+    init_cem()
+
+def init_wa():
+    global textbox_wa
+    global wa_tabs
     # Login
     #       and uncheck the remember check box
     #       (Get your phone ready to read the QR code)
-    login_page = LoginPage(driver)
-    login_page.load()
+    driver.get(url_wa)
     wa_tabs = driver.current_window_handle
-    time.sleep(15)
+    textbox_wa = select_conv(_conv, driver)
+
+def init_cem():
+    global cem_tabs
+    global form_guess
+    driver.execute_script("window.open('');")
+    driver.switch_to.window(driver.window_handles[1])
+    driver.get(url_cemantix)
+    cem_tabs = driver.current_window_handle
+    try:
+        close_dialog = driver.find_element(By.XPATH, "//*[@id='dialog-close']")
+        close_dialog.click()  # pour enlever le popup
+    except NoSuchElementException:
+        print("Oops, impossible de trouver l'élément X")
+    try:
+        form_guess = driver.find_element(By.XPATH, "//*[@id='guess']")
+        form_guess.click()
+        form_guess.clear()
+    except NoSuchElementException:
+        print("Oops, impossible de trouver l'élément @id='guess'")
+        driver.quit()
+        init()
+    driver.switch_to.window(wa_tabs)
+
+
+
+
 # Creating the driver (browser)
 # driver = webdriver.Firefox()
 
 
-def select_conv(conv : str):
+def select_conv(conv : str, driver):
+
 
     # Selection de la conversation Gwoleo
-    global textbox_wa
-
-    try:
-        _conv = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='" + conv + "']")
-        _conv.click()
-        textbox_wa = driver.find_element(By.XPATH,
-                                         "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")
-    except NoSuchElementException:
-        print("Oops, impossible de trouver Gwoleo")
+    textbox_wa = None
+    while textbox_wa is None:
+        try:
+            _conv = driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='" + conv + "']")
+            _conv.click()
+            textbox_wa = driver.find_element(By.XPATH,
+                                             "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")
+        except NoSuchElementException:
+            print("Oops, impossible de trouver Gwoleo")
+            time.sleep(1)
+    return textbox_wa
 
 init()
-select_conv(_conv)
 #####################################################################################
 
-def sendmessage(message, wa_tab, textbox_wa=driver.find_element(By.XPATH,
-                                                                "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")):
+def sendmessage(message, wa_tab, textbox_wa):
     driver.switch_to.window(wa_tab)
     textbox_wa.click()
     textbox_wa.clear()
@@ -107,7 +139,7 @@ def score_proposition_cemantix(proposition_gwoleo):
     finally:
         if re.match("Je ne connais pas le mot", driver.find_element(By.ID, "error").text):
             score = -1
-            sendmessage("Je ne connais pas le mot", wa_tabs)
+            sendmessage("Je ne connais pas le mot", wa_tabs, textbox_wa)
         driver.switch_to.window(wa_tabs)
         return (score)
 
@@ -124,10 +156,7 @@ def getscore(rex_msg, tableaudujour, textbox_wa=driver.find_element(By.XPATH,
         else:
             _id = 0
         ligne = {"_id": _id, "mot": mot, "time": time, "score": score_proposition_cemantix(mot)}
-        #   driver.switch_to.window(wa_tabs)
-        #   textbox_wa.clear()
-        #   textbox_wa.send_keys("id :  " +str(_id ) +"  mot : " + mot +"   " +str(score))
-        #   textbox_wa.send_keys(Keys.RETURN)
+
         return ligne
     else:
         return None
@@ -196,44 +225,27 @@ def interpreteur(msg):
                 send_copied_image(wa_tabs)
             elif mot == "_refresh":
                 refresh_cemantix(cem_tabs, driver)
-                sendmessage("refresh effectué", wa_tabs)
+                sendmessage("refresh effectué", wa_tabs, textbox_wa)
             else:
                 print("option invalide")
-                sendmessage("option invalide", wa_tabs)
+                sendmessage("option invalide", wa_tabs, textbox_wa)
 
         else:
             ligne = getscore(rex_msg, tableaudujour, textbox_wa)
             if ligne is not None:
-                sendmessage("id :  " + str(ligne["_id"]) + "  mot : " + mot + "   " + str(ligne["score"]), wa_tabs)
+                sendmessage("id :  " + str(ligne["_id"]) + "  mot : " + mot + "   " + str(ligne["score"]), wa_tabs, textbox_wa)
                 tableaudujour.append(ligne)
             else:
-                sendmessage("mot déjà essayé :", wa_tabs)
+                sendmessage("mot déjà essayé :", wa_tabs, textbox_wa)
                 for _ in tableaudujour:
                     for key, value in _.items():
                         if value == mot:
-                            sendmessage("id :  " + str(_["_id"]) + "  mot : " + mot + "   " + str(_["score"]), wa_tabs)
+                            sendmessage("id :  " + str(_["_id"]) + "  mot : " + mot + "   " + str(_["score"]), wa_tabs, textbox_wa)
 
 
 ################################################################################
 
 
-# Ouverture de l'onglet cemantix
-driver.execute_script("window.open('');")
-driver.switch_to.window(driver.window_handles[1])
-driver.get(url_cemantix)
-cem_tabs = driver.current_window_handle
-
-try:
-    close_dialog = driver.find_element(By.XPATH, "//*[@id='dialog-close']")
-    close_dialog.click()  # pour enlever le popup
-except NoSuchElementException:
-    print("Oops, impossible de trouver l'élément X")
-
-form_guess = driver.find_element(By.XPATH, "//*[@id='guess']")
-form_guess.click()
-form_guess.clear()
-driver.switch_to.window(wa_tabs)
-driver.switch_to.window(wa_tabs)
 sendmessage(bienvenue, wa_tabs, textbox_wa)
 sendmessage(usage, wa_tabs, textbox_wa)
 try:
@@ -264,6 +276,10 @@ while (1):
                                             "//div[contains(concat(' ',normalize-space(@class),' '),' message-out ')]")
         if messages_in.__len__() == 0 or messages_out.__len__() == 0:
             print("Oops, impossible de trouver les messages // messages[]=None")
+    except NoSuchWindowException :
+        print("Fenetre a été fermé, reinitialation du driver")
+        driver.quit()
+        init()
 
     except NoSuchElementException:
         print("Oops, impossible de trouver les messages")
@@ -274,15 +290,22 @@ while (1):
                 interpreteur(last_msg_in)
             except StaleElementReferenceException:
                 print("msg in went wrong")
-
+    except IndexError:
+        print("list msg_in index out of range")
+    except NameError:
+        print("messages_in not defined")
+    try:
         if last_msg_out != messages_out[-1]:
             last_msg_out = messages_out[-1]
             try:
                 interpreteur(last_msg_out)
             except StaleElementReferenceException:
-                print("StaleElementReferenceException")
+                print("msg out went wrong")
+    except IndexError:
+        print("list msg_out index out of range")
     except NameError:
-        print("messages not defined")
+        print("messages_out not defined")
+
 
     #   for _ in tableaudujour:
     #       for key, value in _.items():
