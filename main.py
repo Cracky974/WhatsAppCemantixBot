@@ -26,15 +26,71 @@ col_heure = 2
 col_score = 3
 regex_proposition = "^c::(.+):: *\n([0-1]?[0-9]|2[0-3]):([0-5][0-9])$"
 rex_mot = re.compile(regex_proposition)
-last_msg_in = None
-last_msg_out = None
+
 bienvenue = "Le serveur est prêt à prendre vos propositions "
-usage = "exemple : c::mot:: option : c::_update:: c::_refresh::"
+usage = "exemple : c::mot:: option : c::_update:: c::_refresh:: c::_reboot::"
+REBOOT_WARNING = "Attention vous allez perdre votre partie, recommencer ? c::_oui:: c::_non::"
 
 
 # tableau 2D ID | mot | heure
 #           1   essai  10:15
 #           2   manger 15:12
+
+class LocalStorage:
+
+    def __init__(self, driver) :
+        self.driver = driver
+
+    def __len__(self):
+        return self.driver.execute_script("return window.localStorage.length;")
+
+    def items(self) :
+        return self.driver.execute_script( \
+            "var ls = window.localStorage, items = {}; " \
+            "for (var i = 0, k; i < ls.length; ++i) " \
+            "  items[k = ls.key(i)] = ls.getItem(k); " \
+            "return items; ")
+
+    def keys(self) :
+        return self.driver.execute_script( \
+            "var ls = window.localStorage, keys = []; " \
+            "for (var i = 0; i < ls.length; ++i) " \
+            "  keys[i] = ls.key(i); " \
+            "return keys; ")
+
+    def get(self, key):
+        return self.driver.execute_script("return window.localStorage.getItem(arguments[0]);", key)
+
+    def set(self, key, value):
+        self.driver.execute_script("window.localStorage.setItem(arguments[0], arguments[1]);", key, value)
+
+    def has(self, key):
+        return key in self.keys()
+
+    def remove(self, key):
+        self.driver.execute_script("window.localStorage.removeItem(arguments[0]);", key)
+
+    def clear(self):
+        self.driver.execute_script("window.localStorage.clear();")
+
+    def __getitem__(self, key) :
+        value = self.get(key)
+        if value is None :
+          raise KeyError(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self.set(key, value)
+
+    def __contains__(self, key):
+        return key in self.keys()
+
+    def __iter__(self):
+        return self.items().__iter__()
+
+    def __repr__(self):
+        return self.items().__str__()
+
 
 
 def column(matrix, column):
@@ -43,7 +99,7 @@ def column(matrix, column):
 def init():
     global driver
 
-    service = Service(executable_path="Z:\Progra\python\WAcemantix\chromedriver.exe")
+    service = Service(executable_path="chromedriver.exe")
     driver = webdriver.Chrome(service=service)
     driver.maximize_window()
     init_wa() # Ouverture de l'onglet cemantix
@@ -62,9 +118,11 @@ def init_wa():
 def init_cem():
     global cem_tabs
     global form_guess
+    storage = LocalStorage(driver)
     driver.execute_script("window.open('');")
     driver.switch_to.window(driver.window_handles[1])
     driver.get(url_cemantix)
+    storage.clear()
     cem_tabs = driver.current_window_handle
     try:
         close_dialog = driver.find_element(By.XPATH, "//*[@id='dialog-close']")
@@ -136,16 +194,17 @@ def score_proposition_cemantix(proposition_gwoleo):
 
     except TimeoutException:
         score = 0
+        print("Timeout excepetion")
     finally:
         if re.match("Je ne connais pas le mot", driver.find_element(By.ID, "error").text):
             score = -1
             sendmessage("Je ne connais pas le mot", wa_tabs, textbox_wa)
         driver.switch_to.window(wa_tabs)
-        return (score)
+        return score
 
 
 def getscore(rex_msg, tableaudujour, textbox_wa=driver.find_element(By.XPATH,
-                                                                    "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")):
+                                                                    "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")) -> dict:
     mot = rex_msg.group(1).replace(" ", "")
     if mot not in column(tableaudujour, "mot"):
         heure = rex_msg.group(2)
@@ -226,9 +285,31 @@ def interpreteur(msg):
             elif mot == "_refresh":
                 refresh_cemantix(cem_tabs, driver)
                 sendmessage("refresh effectué", wa_tabs, textbox_wa)
+            elif mot == "_reboot":
+                sendmessage(REBOOT_WARNING,  wa_tabs, textbox_wa)
+                msg_in = ""
+                msg_out= ""
+                while msg_in != "_oui" or msg_out != "_oui" or msg_in != "_non" or msg_out != "_non":
+                    msg_in = recup_msgs("in")[-1].text
+                    msg_out = recup_msgs("out")[-1].text
+                    rex_msg_in = rex_mot.search(msg_in.lower())
+                    rex_msg_out = rex_mot.search(msg_out.lower())
+                    if rex_msg_in is not None :
+                        msg_in = rex_msg_in.group(1).replace(" ", "")
+                    if rex_msg_out is not None :
+                        msg_out = rex_msg_out.group(1).replace(" ", "")
+                    if msg_in == "_non" or msg_out == "_non":
+                            break
+                    elif msg_in == "_oui" or msg_out == "_oui":
+                            driver.switch_to.window(cem_tabs)
+                            driver.close()
+                            driver.switch_to.window(wa_tabs)
+                            init_cem()
+                            break
             else:
-                print("option invalide")
-                sendmessage("option invalide", wa_tabs, textbox_wa)
+                if mot != "_oui" or mot != "_non":
+                    print("option invalide")
+                    sendmessage("option invalide", wa_tabs, textbox_wa)
 
         else:
             ligne = getscore(rex_msg, tableaudujour, textbox_wa)
@@ -242,47 +323,37 @@ def interpreteur(msg):
                         if value == mot:
                             sendmessage("id :  " + str(_["_id"]) + "  mot : " + mot + "   " + str(_["score"]), wa_tabs, textbox_wa)
 
+def recup_msgs(inorout : str)->list:
+    if inorout == "in" or inorout == "out":
+        try:
+            driver.switch_to.window(wa_tabs)
+            messages = driver.find_elements(By.XPATH,
+                                               "//div[contains(concat(' ',normalize-space(@class),' '),' message-" + inorout + " ')]")
 
+            if messages.__len__() == 0:
+                print("Oops, impossible de trouver les messages // messages[]=None")
+        except NoSuchWindowException :
+            print("Fenetre a été fermé, reinitialation du driver")
+            driver.quit()
+            init()
+        return messages
+    else :
+        print("inorout != in or out")
+        print(inorout)
+        return None
 ################################################################################
 
 
 sendmessage(bienvenue, wa_tabs, textbox_wa)
 sendmessage(usage, wa_tabs, textbox_wa)
-try:
-    messages_in = driver.find_elements(By.XPATH,
-                                       "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
-    if messages_in.__len__() == 0:
-        print("Oops, impossible de trouver les messages_in")
-    else:
-        last_msg_in = messages_in[-1]
 
-    messages_out = driver.find_elements(By.XPATH,
-                                        "//div[contains(concat(' ',normalize-space(@class),' '),' message-out ')]")
-    if messages_out.__len__() == 0:
-        print("Oops, impossible de trouver les messages_out")
-    else:
-        last_msg_out = messages_out[-1]
-
-except NoSuchElementException:
-    print("Oops, impossible de trouver les messages_in")
+last_msg_in = recup_msgs("in")
+last_msg_out = recup_msgs("out")
 
 while (1):
     # Selection des messages_in reçu
-    try:
-        driver.switch_to.window(wa_tabs)
-        messages_in = driver.find_elements(By.XPATH,
-                                           "//div[contains(concat(' ',normalize-space(@class),' '),' message-in ')]")
-        messages_out = driver.find_elements(By.XPATH,
-                                            "//div[contains(concat(' ',normalize-space(@class),' '),' message-out ')]")
-        if messages_in.__len__() == 0 or messages_out.__len__() == 0:
-            print("Oops, impossible de trouver les messages // messages[]=None")
-    except NoSuchWindowException :
-        print("Fenetre a été fermé, reinitialation du driver")
-        driver.quit()
-        init()
-
-    except NoSuchElementException:
-        print("Oops, impossible de trouver les messages")
+    messages_in = recup_msgs("in")
+    messages_out = recup_msgs("out")
     try:
         if last_msg_in != messages_in[-1]:
             last_msg_in = messages_in[-1]
