@@ -1,4 +1,7 @@
+import os
+import pathlib
 import time
+from platform import system
 import re
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException
@@ -12,11 +15,11 @@ from selenium.common.exceptions import StaleElementReferenceException
 from selenium.common.exceptions import NoSuchWindowException
 from PIL import Image
 from io import BytesIO
-import win32clipboard
 
 # variables globales
 
 _conv = "GwoLeo"
+DRIVER_PATH = "./chromedriver"
 url_cemantix = "https://cemantix.herokuapp.com/"
 url_wa = "https://web.whatsapp.com/"
 tableaudujour = []
@@ -99,7 +102,7 @@ def column(matrix, column):
 def init():
     global driver
 
-    service = Service(executable_path="chromedriver.exe")
+    service = Service(executable_path=DRIVER_PATH)
     driver = webdriver.Chrome(service=service)
     driver.maximize_window()
     init_wa() # Ouverture de l'onglet cemantix
@@ -222,6 +225,7 @@ def getscore(rex_msg, tableaudujour, textbox_wa=driver.find_element(By.XPATH,
 
 
 def get_screenshot_update():
+
     driver.switch_to.window(cem_tabs)
     guessable = driver.find_element(By.ID, "guessable")
     png = driver.get_screenshot_as_png()
@@ -244,15 +248,43 @@ def get_screenshot_update():
 
 
 def copy_image(path: str) -> None:
-    image = Image.open(path)
-    output = BytesIO()
-    image.convert("RGB").save(output, "BMP")
-    data = output.getvalue()[14:]
-    output.close()
-    win32clipboard.OpenClipboard()
-    win32clipboard.EmptyClipboard()
-    win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
-    win32clipboard.CloseClipboard()
+    """Copy the Image to Clipboard based on the Platform"""
+
+    if system().lower() == "linux":
+        if pathlib.Path(path).suffix in (".PNG", ".png"):
+            os.system(f"copyq copy image/png - < {path}")
+        elif pathlib.Path(path).suffix in (".jpg", ".JPG", ".jpeg", ".JPEG"):
+            os.system(f"copyq copy image/jpeg - < {path}")
+        else:
+            raise Exception(
+                f"File Format {pathlib.Path(path).suffix} is not Supported!"
+            )
+    elif system().lower() == "windows":
+        
+
+        import win32clipboard
+        
+
+        image = Image.open(path)
+        output = BytesIO()
+        image.convert("RGB").save(output, "BMP")
+        data = output.getvalue()[14:]
+        output.close()
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+        win32clipboard.CloseClipboard()
+    elif system().lower() == "darwin":
+        if pathlib.Path(path).suffix in (".jpg", ".jpeg", ".JPG", ".JPEG"):
+            os.system(
+                f"osascript -e 'set the clipboard to (read (POSIX file \"{path}\") as JPEG picture)'"
+            )
+        else:
+            raise Exception(
+                f"File Format {pathlib.Path(path).suffix} is not Supported!"
+            )
+    else:
+        raise Exception(f"Unsupported System: {system().lower()}")
 
 
 def send_copied_image(wa_tab, textbox_wat=driver.find_element(By.XPATH, "//*[@title='Type a message']")):
