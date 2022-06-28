@@ -80,15 +80,16 @@ class WhatsappBot:
     last_msg_in = None
     last_msg_out = None
     _conv = "William Gougam"
-    regex_proposition = "^c::(.+):: *\n([0-1]?[0-9]|2[0-3]):([0-5][0-9])$"
+    regex_proposition = "(?:.+\n)?c::(.+):: *\n([0-1]?[0-9]|2[0-3]):([0-5][0-9])$"
     rex_mot = None
     DRIVER_PATH = "./chromedriver"
     url_cemantix = "https://cemantix.herokuapp.com/"
     url_wa = "https://web.whatsapp.com/"
     WELCOME = "Le serveur est prêt à prendre vos propositions "
-    USAGE = "exemple : c::mot:: option : c::_update:: c::_refresh:: c::_reboot::"
+    USAGE = "exemple : c::mot:: option : c::_update:: c::_refresh:: c::_reboot:: c::_reload::"
     REBOOT_WARNING = "Attention vous allez perdre votre partie, recommencer ? c::_oui:: c::_non::"
     PATH_SAVE = ".\save.json"
+
 
     def __init__(self, conv: str):
         # self.driver = driver
@@ -97,12 +98,10 @@ class WhatsappBot:
         self.driver.maximize_window()
         self._conv = conv
         self.rex_mot = re.compile(self.regex_proposition)
-        self.init_wa()  # Ouverture de l'onglet cemantix
-        self.init_cem()
+
         if not os.path.exists(self.PATH_SAVE):
             with open(self.PATH_SAVE, 'w') as file:
                 file.write("[]")
-
 
 
     def init_wa(self):
@@ -150,7 +149,8 @@ class WhatsappBot:
                 _conv = self.driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='" + conv + "']")
                 _conv.click()
                 textbox_wa = self.driver.find_element(By.XPATH,
-                                                      "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div[2]")
+                                                      "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/"
+                                                      "span[2]/div/div[2]/div[1]/div/div[2]")
             except NoSuchElementException:
                 print("Oops, impossible de trouver Gwoleo")
                 time.sleep(1)
@@ -209,7 +209,7 @@ class WhatsappBot:
             else:
                 _id = 0
             ligne = {"_id": _id, "mot": mot, "time": time, "score": self.score_proposition_cemantix(mot)}
-            self.write_json(ligne)
+
             return ligne
         else:
             return None
@@ -281,15 +281,14 @@ class WhatsappBot:
         textbox_wat.send_keys(Keys.CONTROL + "v")
         self.driver.implicitly_wait(1)
         # obligé de changer de textbox a cause du changement de whatsapp quand collage d'une image
-        textbox_wat = self.driver.find_element(By.XPATH,
-                                               "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/"
-                                               "div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
+        #textbox_wat = self.driver.find_element(By.XPATH,
+        #                                      "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/"
+        #                                      "div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
         # textbox_wat.send_keys(Keys.RETURN)
         send_button_wa = WebDriverWait(self.driver, 0.2).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//*[@id="app"]'
-                           '/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[2]/div[2]/div/div'))
-        )
+                           '/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[2]/div[2]/div/div')))
         send_button_wa.click()
 
     def refresh_cemantix(self):
@@ -320,6 +319,7 @@ class WhatsappBot:
             else:
                 ligne = self.getscore(rex_msg)
                 if ligne is not None:
+                    self.watch_for_new_msg()
                     self.sendmessage("id :  " + str(ligne["_id"]) + "  mot : " + mot + "   " + str(ligne["score"]))
                     self.tableaudujour.append(ligne)
                     self.write_json(ligne)
@@ -343,15 +343,14 @@ class WhatsappBot:
                 try:
                     msg_in = self.last_msg_in.text
                     rex_msg_in = self.rex_mot.search(msg_in.lower())
-                except IndexError:
+                except (IndexError, AttributeError):
                     print("continue")
                 try:
 
                     msg_out = self.last_msg_out.text
                     rex_msg_out = self.rex_mot.search(msg_out.lower())
-                except IndexError:
+                except (IndexError, AttributeError):
                     print("continue")
-
                 if rex_msg_in is not None:
                     msg_in = rex_msg_in.group(1).replace(" ", "")
                 if rex_msg_out is not None:
@@ -368,12 +367,12 @@ class WhatsappBot:
                     self.driver.switch_to.window(self.wa_tabs)
                     self.init_cem()
                     self.tableaudujour = []
-
                     with open(self.PATH_SAVE, 'w') as file:
                         file.write("[]")
                     self.sendmessage("reboot effectué")
                     print("reboot effectué")
                     self.watch_for_new_msg()
+                    break
                 else:
                     print("option invalide choisir _oui ou _non")
                     self.sendmessage("option invalide choisir _oui ou _non")
@@ -404,14 +403,13 @@ class WhatsappBot:
             with open(self.PATH_SAVE) as json_file:
                 self.tableaudujour = json.load(json_file)
             for ligne in self.tableaudujour:
-                print(ligne)
                 if int(ligne["score"]) > 0:
                     self.score_proposition_cemantix(ligne["mot"])
         except (json.decoder.JSONDecodeError, FileNotFoundError):
             print("sauvegarde corrompue ou inexistante")
             self.sendmessage("sauvegarde corrompue ou inexistante")
-        print("sauvegarde ok")
-        self.sendmessage("Sauvegarde OK")
+        print("charg sauvegarde ok")
+        self.sendmessage("Chargement de la Sauvegarde OK")
 
     def watch_for_new_msg(self)->bool:
         messages_in = self.recup_msgs("in")
@@ -439,7 +437,8 @@ class WhatsappBot:
         return False
 
     def run(self):
-
+        self.init_wa()  # Ouverture de l'onglet cemantix
+        self.init_cem()
         self.sendmessage(self.WELCOME)
         self.sendmessage(self.USAGE)
 
