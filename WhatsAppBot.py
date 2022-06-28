@@ -181,9 +181,9 @@ class WhatsappBot:
             self.driver.switch_to.window(self.wa_tabs)
             return self.score
 
-    def getscore(self) -> dict:
+    def getscore(self, rex_msg: str) -> dict:
 
-        mot = self.rex_msg.group(1).replace(" ", "")
+        mot = rex_msg.group(1).replace(" ", "")
         if mot not in self.column(tableaudujour, "mot"):
             heure = self.rex_msg.group(2)
             minute = self.rex_msg.group(3)
@@ -326,7 +326,7 @@ class WhatsappBot:
                     print("option invalide")
                     self.sendmessage("option invalide")
             else:
-                ligne = self.getscore()
+                ligne = self.getscore(rex_msg)
                 if ligne is not None:
                     self.sendmessage("id :  " + str(ligne["_id"]) + "  mot : " + mot + "   " + str(ligne["score"]))
                     self.tableaudujour.append(ligne)
