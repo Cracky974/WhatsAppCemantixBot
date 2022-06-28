@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
-
+from selenium.common.exceptions import StaleElementReferenceException
 from selenium.common.exceptions import NoSuchWindowException
 from PIL import Image
 from io import BytesIO
@@ -313,12 +313,13 @@ class WhatsappBot:
                             self.driver.close()
                             self.driver.switch_to.window(self.wa_tabs)
                             self.init_cem()
+                            self.tableaudujour = []
                             self.sendmessage("reboot effectué")
                         else:
                             if mot != "_oui" or mot != "_non":
                                 print("option invalide choisir _oui ou _non")
                                 self.sendmessage("option invalide choisir _oui ou _non")
-                elif  mot == "_oui" or mot == "_non":
+                elif mot == "_oui" or mot == "_non":
                     return
 
                 else:
@@ -354,3 +355,46 @@ class WhatsappBot:
             print("inorout != in or out")
             print(inorout)
             return None
+
+    def run(self):
+
+        self.sendmessage(self.WELCOME)
+        self.sendmessage(self.USAGE)
+
+        last_msg_in = self.recup_msgs("in")
+        last_msg_out = self.recup_msgs("out")
+
+        while (1):
+            # Selection des messages_in reçu
+            messages_in = self.recup_msgs("in")
+            messages_out = self.recup_msgs("out")
+            try:
+                if last_msg_in != messages_in[-1]:
+                    last_msg_in = messages_in[-1]
+                    try:
+                        self.interpreteur(last_msg_in)
+                    except StaleElementReferenceException:
+                        print("msg in went wrong")
+            except IndexError:
+                print("list msg_in index out of range")
+            except NameError:
+                print("messages_in not defined")
+            try:
+                if last_msg_out != messages_out[-1]:
+                    last_msg_out = messages_out[-1]
+                    try:
+                        self.interpreteur(last_msg_out)
+                    except StaleElementReferenceException:
+                        print("msg out went wrong")
+            except IndexError:
+                print("list msg_out index out of range")
+            except NameError:
+                print("messages_out not defined")
+
+            #   for _ in tableaudujour:
+            #       for key, value in _.items():
+            #           print(key, ' : ', value)
+            #       print()
+
+            time.sleep(0.2)
+

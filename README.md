@@ -8,19 +8,31 @@ https://chromedriver.storage.googleapis.com/index.html?path=103.0.5060.53/
 Puis de créer l'environnement virtuel python 
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+$python3 -m venv venv
+$source venv/bin/activate
 ```
 
 ```bash
-pip install -r requirements.txt
+$pip install -r requirements.txt
 ```
 
 ```bash
-pip install selenium
+$pip install selenium
 ```
 Pour LINUX copyq doit être installé afin de géré le copier collé des images : 
 
 ```bash
-sudo apt-get install copyq
+$sudo apt-get install -y copyq
 ```
+Puis lancer
+```
+$copyq
+```
+#########################################################################################
+
+Lancer le projet :
+
+```
+python ./main.py 
+```
+
