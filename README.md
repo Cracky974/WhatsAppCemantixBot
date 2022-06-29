@@ -33,6 +33,6 @@ $copyq
 Lancer le projet :
 
 ```
-python ./main.py 
+python ./main.py "nom de la conversation"
 ```
 

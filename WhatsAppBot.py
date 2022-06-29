@@ -24,6 +24,7 @@ class LocalStorage:
     def __init__(self, driver):
         self.driver = driver
 
+
     def __len__(self):
         return self.driver.execute_script("return window.localStorage.length;")
 
@@ -79,7 +80,7 @@ class WhatsappBot:
     tableaudujour = []
     last_msg_in = None
     last_msg_out = None
-    _conv = "William Gougam"
+    _conv = ""
     regex_proposition = "(?:.+\n)?c::(.+):: *\n([0-1]?[0-9]|2[0-3]):([0-5][0-9])$"
     rex_mot = None
     DRIVER_PATH = "./chromedriver"
@@ -285,7 +286,7 @@ class WhatsappBot:
         #                                      "/html/body/div[1]/div/div/div[2]/div[2]/span/div/span/div/div/"
         #                                      "div[2]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[2]")
         # textbox_wat.send_keys(Keys.RETURN)
-        send_button_wa = WebDriverWait(self.driver, 0.2).until(
+        send_button_wa = WebDriverWait(self.driver, 3).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//*[@id="app"]'
                            '/div/div/div[2]/div[2]/span/div/span/div/div/div[2]/div/div[2]/div[2]/div/div')))
@@ -390,7 +391,10 @@ class WhatsappBot:
             except NoSuchWindowException:
                 print("Fenetre a été fermé, reinitialation du driver")
                 self.driver.quit()
-                self.init()
+                self.__init__(self._conv)
+                self.init_wa()  # Ouverture de l'onglet cemantix
+                self.init_cem()
+
             return messages
         else:
             print("inorout != in or out")
@@ -400,7 +404,7 @@ class WhatsappBot:
     def reload(self):
         self.sendmessage("Chargement, veuillez attendre")
         try:
-            with open(self.PATH_SAVE) as json_file:
+            with open(self.PATH_SAVE, "r", encoding='utf-8') as json_file:
                 self.tableaudujour = json.load(json_file)
             for ligne in self.tableaudujour:
                 if int(ligne["score"]) > 0:
@@ -488,7 +492,7 @@ class WhatsappBot:
     @staticmethod
     def write_json(new_data, filename="./save.json"):
         try:
-            with open(filename, 'r+') as file:
+            with open(filename, 'r+', encoding='utf-8') as file:
                 # First we load existing data into a dict.
                 file_data = json.load(file)
                 # Join new_data with file_data
@@ -496,7 +500,7 @@ class WhatsappBot:
                 # Sets file's current position at offset.
                 file.seek(0)
                 # convert back to json.
-                json.dump(file_data, file, indent=4)
+                json.dump(file_data, file, indent=4, ensure_ascii=False)
         except (json.decoder.JSONDecodeError, FileNotFoundError):
             with open(filename, 'w') as file:
                 file.write("[]")
