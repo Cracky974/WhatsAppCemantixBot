@@ -137,7 +137,7 @@ class WhatsappBot:
         except NoSuchElementException:
             print("Oops, impossible de trouver l'élément @id='guess'")
             self.driver.quit()
-            self.init()
+
         del storage
         self.driver.switch_to.window(self.wa_tabs)
 
@@ -368,8 +368,11 @@ class WhatsappBot:
                     self.driver.switch_to.window(self.wa_tabs)
                     self.init_cem()
                     self.tableaudujour = []
+                    open(self.PATH_SAVE, 'w').close()
                     with open(self.PATH_SAVE, 'w') as file:
                         file.write("[]")
+
+
                     self.sendmessage("reboot effectué")
                     print("reboot effectué")
                     self.watch_for_new_msg()
