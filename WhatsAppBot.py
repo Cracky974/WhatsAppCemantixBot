@@ -131,7 +131,7 @@ class WhatsappBot:
         except NoSuchElementException:
             print("Oops, impossible de trouver l'élément X")
         try:
-            self.form_guess = self.driver.find_element(By.XPATH, "//*[@id='guess']")
+            self.form_guess = self.driver.find_element(By.XPATH, '//*[@id="cemantix-guess"]')
             self.form_guess.click()
             self.form_guess.clear()
         except NoSuchElementException:
