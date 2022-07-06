@@ -91,7 +91,11 @@ class WhatsappBot:
     REBOOT_WARNING = "Attention vous allez perdre votre partie, recommencer ? c::_oui:: c::_non::"
     PATH_SAVE = ".\save.json"
 
-
+    XPATH_GUESS = '//*[@id="cemantix-guess"]'
+    XPATH_WA_TXTBOX = "//*[@id='main']/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div"
+    ID_ERROR_CEM = "cemantix-error"
+    ID_CEM_GUESSABLE = "cemantix-guessable"
+    XPATH_WA_SEND_BUTTON = "//*[@id='main']/footer/div[1]/div/span[2]/div/div[2]/div[2]/button"
     def __init__(self, conv: str):
         # self.driver = driver
         service = Service(executable_path=self.DRIVER_PATH)
@@ -131,7 +135,7 @@ class WhatsappBot:
         except NoSuchElementException:
             print("Oops, impossible de trouver l'élément X")
         try:
-            self.form_guess = self.driver.find_element(By.XPATH, '//*[@id="cemantix-guess"]')
+            self.form_guess = self.driver.find_element(By.XPATH, self.XPATH_GUESS)
             self.form_guess.click()
             self.form_guess.clear()
         except NoSuchElementException:
@@ -149,9 +153,7 @@ class WhatsappBot:
             try:
                 _conv = self.driver.find_element(By.XPATH, "//*[@id='pane-side']/div[2]//*[@title='" + conv + "']")
                 _conv.click()
-                textbox_wa = self.driver.find_element(By.XPATH,
-                                                      "/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div/"
-                                                      "span[2]/div/div[2]/div[1]/div/div[2]")
+                textbox_wa = self.driver.find_element(By.XPATH, self.XPATH_WA_TXTBOX)
             except NoSuchElementException:
                 print("Oops, impossible de trouver Gwoleo")
                 time.sleep(1)
@@ -168,7 +170,7 @@ class WhatsappBot:
 
         send_button_wa = WebDriverWait(self.driver, 0.2).until(
             EC.presence_of_element_located(
-                (By.XPATH, "//*[@id='main']/footer/div[1]/div/span[2]/div/div[2]/div[2]/button"))
+                (By.XPATH, self.XPATH_WA_SEND_BUTTON))
         )
         send_button_wa.click()
 
@@ -192,7 +194,7 @@ class WhatsappBot:
             self.score = 0
             print("Timeout excepetion")
         finally:
-            if re.match("Je ne connais pas le mot", self.driver.find_element(By.ID, "error").text):
+            if re.match("Je ne connais pas le mot", self.driver.find_element(By.ID, self.ID_ERROR_CEM).text):
                 self.score = -1
                 self.sendmessage("Je ne connais pas le mot")
             self.driver.switch_to.window(self.wa_tabs)
@@ -217,7 +219,7 @@ class WhatsappBot:
 
     def get_screenshot_update(self) -> None:
         self.driver.switch_to.window(self.cem_tabs)
-        guessable = self.driver.find_element(By.ID, "guessable")
+        guessable = self.driver.find_element(By.ID, self.ID_CEM_GUESSABLE)
         png = self.driver.get_screenshot_as_png()
 
         location = guessable.location
